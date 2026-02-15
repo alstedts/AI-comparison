@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Kontrollrom</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-deep: #0a0c10;
+    --bg-surface: #12151c;
+    --bg-panel: #181c26;
+    --bg-input: #1e2330;
+    --border-dim: #252a38;
+    --border-glow: #3a4260;
+    --text-primary: #e2e6f0;
+    --text-secondary: #8891a8;
+    --text-muted: #555d74;
+    --accent-claude: #d4a574;
+    --accent-gpt: #74b9a0;
+    --accent-gemini: #7494d4;
+    --accent-mistral: #c474d4;
+    --accent-claude-bg: rgba(212, 165, 116, 0.08);
+    --accent-gpt-bg: rgba(116, 185, 160, 0.08);
+    --accent-gemini-bg: rgba(116, 148, 212, 0.08);
+    --accent-mistral-bg: rgba(196, 116, 212, 0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border-dim);
+    background: var(--bg-surface);
+    flex-shrink: 0;
+  }
+
+  .header-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+
+  .header-title span {
+    color: var(--text-primary);
+  }
+
+  .status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #4ade80;
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Model selector bar */
+  .model-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border-dim);
+    background: var(--bg-surface);
+    flex-shrink: 0;
+  }
+
+  .model-bar-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-right: 4px;
+  }
+
+  .model-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border-dim);
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    user-select: none;
+  }
+
+  .model-toggle:hover {
+    border-color: var(--border-glow);
+    color: var(--text-secondary);
+  }
+
+  .model-toggle.active[data-model="claude"] {
+    border-color: var(--accent-claude);
+    color: var(--accent-claude);
+    background: var(--accent-claude-bg);
+  }
+  .model-toggle.active[data-model="chatgpt"] {
+    border-color: var(--accent-gpt);
+    color: var(--accent-gpt);
+    background: var(--accent-gpt-bg);
+  }
+  .model-toggle.active[data-model="gemini"] {
+    border-color: var(--accent-gemini);
+    color: var(--accent-gemini);
+    background: var(--accent-gemini-bg);
+  }
+  .model-toggle.active[data-model="mistral"] {
+    border-color: var(--accent-mistral);
+    color: var(--accent-mistral);
+    background: var(--accent-mistral-bg);
+  }
+
+  .toggle-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    transition: all 0.2s ease;
+  }
+
+  .model-toggle.active .toggle-dot {
+    background: currentColor;
+  }
+
+  /* Main content area with panels */
+  .panels-container {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border-dim);
+    min-width: 0;
+    animation: panel-enter 0.3s ease;
+  }
+
+  @keyframes panel-enter {
+    from { opacity: 0; transform: scaleX(0.95); }
+    to { opacity: 1; transform: scaleX(1); }
+  }
+
+  .panel:last-child { border-right: none; }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-dim);
+    background: var(--bg-surface);
+    flex-shrink: 0;
+  }
+
+  .panel-accent {
+    width: 3px;
+    height: 16px;
+    border-radius: 2px;
+  }
+
+  .panel[data-model="claude"] .panel-accent { background: var(--accent-claude); }
+  .panel[data-model="chatgpt"] .panel-accent { background: var(--accent-gpt); }
+  .panel[data-model="gemini"] .panel-accent { background: var(--accent-gemini); }
+  .panel[data-model="mistral"] .panel-accent { background: var(--accent-mistral); }
+
+  .panel-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .panel[data-model="claude"] .panel-name { color: var(--accent-claude); }
+  .panel[data-model="chatgpt"] .panel-name { color: var(--accent-gpt); }
+  .panel[data-model="gemini"] .panel-name { color: var(--accent-gemini); }
+  .panel[data-model="mistral"] .panel-name { color: var(--accent-mistral); }
+
+  .panel-status {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .panel-body::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .panel-body::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .panel-body::-webkit-scrollbar-thumb {
+    background: var(--border-dim);
+    border-radius: 2px;
+  }
+
+  /* Messages */
+  .message {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .message-role {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+  }
+
+  .message-content {
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .message.user .message-content {
+    color: var(--text-secondary);
+    padding: 10px 14px;
+    background: var(--bg-input);
+    border-radius: 8px;
+    border: 1px solid var(--border-dim);
+  }
+
+  .message.assistant .message-content {
+    padding: 10px 14px;
+    border-radius: 8px;
+  }
+
+  .panel[data-model="claude"] .message.assistant .message-content { background: var(--accent-claude-bg); }
+  .panel[data-model="chatgpt"] .message.assistant .message-content { background: var(--accent-gpt-bg); }
+  .panel[data-model="gemini"] .message.assistant .message-content { background: var(--accent-gemini-bg); }
+  .panel[data-model="mistral"] .message.assistant .message-content { background: var(--accent-mistral-bg); }
+
+  /* Streaming cursor */
+  .streaming-cursor::after {
+    content: '';
+    display: inline-block;
+    width: 2px;
+    height: 14px;
+    background: var(--text-secondary);
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink 0.8s step-end infinite;
+  }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  /* Empty state */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+  }
+
+  .empty-state-text {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    max-width: 280px;
+  }
+
+  .no-panels-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-deep);
+  }
+
+  .no-panels-inner {
+    text-align: center;
+    max-width: 400px;
+  }
+
+  .no-panels-inner h2 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+  }
+
+  .no-panels-inner p {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  /* Input area */
+  .input-area {
+    border-top: 1px solid var(--border-dim);
+    background: var(--bg-surface);
+    padding: 16px 24px;
+    flex-shrink: 0;
+  }
+
+  .input-wrapper {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .input-field {
+    flex: 1;
+    background: var(--bg-input);
+    border: 1px solid var(--border-dim);
+    border-radius: 10px;
+    padding: 12px 16px;
+    color: var(--text-primary);
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: none;
+    outline: none;
+    transition: border-color 0.2s ease;
+    min-height: 44px;
+    max-height: 160px;
+  }
+
+  .input-field::placeholder {
+    color: var(--text-muted);
+  }
+
+  .input-field:focus {
+    border-color: var(--border-glow);
+  }
+
+  .send-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    border: 1px solid var(--border-dim);
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .send-btn:hover {
+    border-color: var(--border-glow);
+    color: var(--text-primary);
+    background: var(--bg-panel);
+  }
+
+  .send-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .send-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* Config modal */
+  .config-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fade-in 0.2s ease;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .config-modal {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-dim);
+    border-radius: 16px;
+    padding: 32px;
+    width: 520px;
+    max-width: 90vw;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: modal-in 0.25s ease;
+  }
+
+  @keyframes modal-in {
+    from { opacity: 0; transform: translateY(12px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .config-modal h2 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+
+  .config-modal p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+
+  .config-group {
+    margin-bottom: 20px;
+  }
+
+  .config-group label {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .config-group input {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border-dim);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.2s ease;
+  }
+
+  .config-group input:focus {
+    border-color: var(--border-glow);
+  }
+
+  .config-group input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .config-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  .config-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 28px;
+  }
+
+  .config-btn {
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .config-btn.secondary {
+    background: transparent;
+    border: 1px solid var(--border-dim);
+    color: var(--text-secondary);
+  }
+
+  .config-btn.secondary:hover {
+    border-color: var(--border-glow);
+  }
+
+  .config-btn.primary {
+    background: var(--text-primary);
+    border: 1px solid transparent;
+    color: var(--bg-deep);
+  }
+
+  .config-btn.primary:hover {
+    opacity: 0.9;
+  }
+
+  .settings-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-dim);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    transition: all 0.2s ease;
+  }
+
+  .settings-btn:hover {
+    border-color: var(--border-glow);
+    color: var(--text-secondary);
+  }
+
+  .settings-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* Backend mode info */
+  .backend-info {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    padding: 6px 24px;
+    text-align: center;
+    border-top: 1px solid var(--border-dim);
+    background: var(--bg-deep);
+    flex-shrink: 0;
+  }
+
+  .backend-info a {
+    color: var(--text-secondary);
+    text-decoration: underline;
+    text-decoration-color: var(--border-dim);
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">AI <span>Kontrollrom</span></div>
+  <div style="display: flex; align-items: center; gap: 16px;">
+    <button class="settings-btn" onclick="openConfig()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+      API-nokler
+    </button>
+    <div class="status-indicator">
+      <div class="status-dot"></div>
+      Klar
+    </div>
+  </div>
+</div>
+
+<div class="model-bar">
+  <span class="model-bar-label">Modeller</span>
+  <button class="model-toggle active" data-model="claude" onclick="toggleModel(this)">
+    <div class="toggle-dot"></div>
+    Claude
+  </button>
+  <button class="model-toggle active" data-model="chatgpt" onclick="toggleModel(this)">
+    <div class="toggle-dot"></div>
+    ChatGPT
+  </button>
+  <button class="model-toggle" data-model="gemini" onclick="toggleModel(this)">
+    <div class="toggle-dot"></div>
+    Gemini
+  </button>
+  <button class="model-toggle" data-model="mistral" onclick="toggleModel(this)">
+    <div class="toggle-dot"></div>
+    Mistral
+  </button>
+</div>
+
+<div class="panels-container" id="panelsContainer">
+  <!-- Panels generated dynamically -->
+</div>
+
+<div class="input-area">
+  <div class="input-wrapper">
+    <textarea class="input-field" id="userInput" placeholder="Skriv meldingen din her..." rows="1" onkeydown="handleKeydown(event)" oninput="autoResize(this)"></textarea>
+    <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
+  </div>
+</div>
+
+<div class="backend-info">
+  Backend: <a onclick="openConfig()">Konfigurer API-nokler</a> | Krever en mellomtjener for produksjon. Se dokumentasjonen i kildekoden.
+</div>
+
+<!-- Config Modal -->
+<div class="config-overlay" id="configOverlay" style="display:none" onclick="closeConfigOutside(event)">
+  <div class="config-modal">
+    <h2>API-konfigurasjon</h2>
+    <p>Legg inn API-noklene dine. Noklene lagres kun lokalt i nettleseren din.</p>
+
+    <div class="config-group">
+      <label style="color: var(--accent-claude)">Claude (Anthropic)</label>
+      <input type="password" id="key-claude" placeholder="sk-ant-..." />
+      <div class="config-hint">anthropic.com/settings</div>
+    </div>
+
+    <div class="config-group">
+      <label style="color: var(--accent-gpt)">ChatGPT (OpenAI)</label>
+      <input type="password" id="key-chatgpt" placeholder="sk-..." />
+      <div class="config-hint">platform.openai.com/api-keys</div>
+    </div>
+
+    <div class="config-group">
+      <label style="color: var(--accent-gemini)">Gemini (Google)</label>
+      <input type="password" id="key-gemini" placeholder="AIza..." />
+      <div class="config-hint">aistudio.google.com/apikey</div>
+    </div>
+
+    <div class="config-group">
+      <label style="color: var(--accent-mistral)">Mistral</label>
+      <input type="password" id="key-mistral" placeholder="..." />
+      <div class="config-hint">console.mistral.ai/api-keys</div>
+    </div>
+
+    <div class="config-group">
+      <label>Proxy-URL (valgfritt)</label>
+      <input type="text" id="proxyUrl" placeholder="https://din-proxy.example.com" />
+      <div class="config-hint">Brukes for a unnga CORS-problemer. Se arkitekturdokumentasjonen.</div>
+    </div>
+
+    <div class="config-actions">
+      <button class="config-btn secondary" onclick="closeConfig()">Avbryt</button>
+      <button class="config-btn primary" onclick="saveConfig()">Lagre</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  STATE
+// ============================================================
+const MODEL_CONFIG = {
+  claude: {
+    name: 'Claude',
+    model: 'claude-sonnet-4-20250514',
+    proxyPath: '/api/claude',
+    directEndpoint: 'https://api.anthropic.com/v1/messages',
+    color: 'claude'
+  },
+  chatgpt: {
+    name: 'ChatGPT',
+    model: 'gpt-4o',
+    proxyPath: '/api/chatgpt',
+    directEndpoint: 'https://api.openai.com/v1/chat/completions',
+    color: 'chatgpt'
+  },
+  gemini: {
+    name: 'Gemini',
+    model: 'gemini-2.0-flash',
+    proxyPath: '/api/gemini',
+    directEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+    color: 'gemini'
+  },
+  mistral: {
+    name: 'Mistral',
+    model: 'mistral-large-latest',
+    proxyPath: '/api/mistral',
+    directEndpoint: 'https://api.mistral.ai/v1/chat/completions',
+    color: 'mistral'
+  }
+};
+
+let conversations = {}; // model -> [{role, content}]
+let apiKeys = {};
+let proxyUrl = '';
+
+// ============================================================
+//  INIT
+// ============================================================
+function init() {
+  loadConfig();
+  renderPanels();
+}
+
+function loadConfig() {
+  try {
+    apiKeys = JSON.parse(window.localStorage?.getItem('ai-keys') || '{}');
+    proxyUrl = window.localStorage?.getItem('ai-proxy') || '';
+  } catch(e) {
+    apiKeys = {};
+    proxyUrl = '';
+  }
+  // Fill config inputs
+  setTimeout(() => {
+    for (const m of Object.keys(MODEL_CONFIG)) {
+      const el = document.getElementById(`key-${m}`);
+      if (el && apiKeys[m]) el.value = apiKeys[m];
+    }
+    const proxyEl = document.getElementById('proxyUrl');
+    if (proxyEl && proxyUrl) proxyEl.value = proxyUrl;
+  }, 100);
+}
+
+function saveConfig() {
+  for (const m of Object.keys(MODEL_CONFIG)) {
+    const el = document.getElementById(`key-${m}`);
+    if (el) apiKeys[m] = el.value.trim();
+  }
+  const proxyEl = document.getElementById('proxyUrl');
+  if (proxyEl) proxyUrl = proxyEl.value.trim();
+
+  try {
+    window.localStorage?.setItem('ai-keys', JSON.stringify(apiKeys));
+    window.localStorage?.setItem('ai-proxy', proxyUrl);
+  } catch(e) {}
+  closeConfig();
+}
+
+function openConfig() {
+  document.getElementById('configOverlay').style.display = 'flex';
+}
+function closeConfig() {
+  document.getElementById('configOverlay').style.display = 'none';
+}
+function closeConfigOutside(e) {
+  if (e.target === e.currentTarget) closeConfig();
+}
+
+// ============================================================
+//  MODEL TOGGLING & PANELS
+// ============================================================
+function getActiveModels() {
+  return [...document.querySelectorAll('.model-toggle.active')].map(b => b.dataset.model);
+}
+
+function toggleModel(btn) {
+  btn.classList.toggle('active');
+  renderPanels();
+}
+
+function renderPanels() {
+  const container = document.getElementById('panelsContainer');
+  const active = getActiveModels();
+
+  if (active.length === 0) {
+    container.innerHTML = `
+      <div class="no-panels-state">
+        <div class="no-panels-inner">
+          <h2>Ingen modeller valgt</h2>
+          <p>Velg minst en AI-modell i linjen over for a starte en samtale.</p>
+        </div>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = active.map(m => `
+    <div class="panel" data-model="${m}">
+      <div class="panel-header">
+        <div class="panel-accent"></div>
+        <div class="panel-name">${MODEL_CONFIG[m].name}</div>
+        <div class="panel-status" id="status-${m}">Klar</div>
+      </div>
+      <div class="panel-body" id="body-${m}">
+        ${(conversations[m] || []).map(msg => renderMessage(msg)).join('')}
+        ${!(conversations[m] || []).length ? `
+          <div class="empty-state">
+            <div class="empty-state-text">Send en melding for a se ${MODEL_CONFIG[m].name} sitt svar her.</div>
+          </div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderMessage(msg) {
+  return `
+    <div class="message ${msg.role}">
+      <div class="message-role">${msg.role === 'user' ? 'Du' : 'Svar'}</div>
+      <div class="message-content">${escapeHtml(msg.content)}</div>
+    </div>`;
+}
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+// ============================================================
+//  INPUT HANDLING
+// ============================================================
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+}
+
+function handleKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+// ============================================================
+//  SENDING MESSAGES
+// ============================================================
+async function sendMessage() {
+  const input = document.getElementById('userInput');
+  const text = input.value.trim();
+  if (!text) return;
+
+  const active = getActiveModels();
+  if (!active.length) return;
+
+  input.value = '';
+  autoResize(input);
+  document.getElementById('sendBtn').disabled = true;
+
+  // Add user message to all active conversations
+  for (const m of active) {
+    if (!conversations[m]) conversations[m] = [];
+    conversations[m].push({ role: 'user', content: text });
+  }
+
+  renderPanels();
+
+  // Call all models in parallel
+  const promises = active.map(m => callModel(m, text));
+  await Promise.allSettled(promises);
+
+  document.getElementById('sendBtn').disabled = false;
+}
+
+async function callModel(model, userText) {
+  const statusEl = document.getElementById(`status-${model}`);
+  const bodyEl = document.getElementById(`body-${model}`);
+  if (!bodyEl) return;
+
+  const key = apiKeys[model];
+  if (!hasAccess(model)) {
+    appendAssistantMessage(model, `[Ingen tilgang til ${MODEL_CONFIG[model].name}. Enten konfigurer proxy-URL eller legg inn API-nokkel direkte.]`);
+    return;
+  }
+
+  statusEl.textContent = 'Tenker...';
+
+  // Create placeholder
+  const msgDiv = document.createElement('div');
+  msgDiv.className = 'message assistant';
+  msgDiv.innerHTML = `
+    <div class="message-role">Svar</div>
+    <div class="message-content streaming-cursor"></div>`;
+  bodyEl.appendChild(msgDiv);
+  bodyEl.scrollTop = bodyEl.scrollHeight;
+
+  const contentEl = msgDiv.querySelector('.message-content');
+  let fullText = '';
+
+  try {
+    const history = (conversations[model] || []).filter(m => m.role !== 'assistant' || m !== conversations[model][conversations[model].length - 1]);
+
+    if (model === 'claude') {
+      fullText = await callClaude(key, history, contentEl);
+    } else if (model === 'chatgpt') {
+      fullText = await callOpenAI(key, history, contentEl);
+    } else if (model === 'gemini') {
+      fullText = await callGemini(key, history, contentEl);
+    } else if (model === 'mistral') {
+      fullText = await callMistral(key, history, contentEl);
+    }
+
+    contentEl.classList.remove('streaming-cursor');
+    conversations[model].push({ role: 'assistant', content: fullText });
+    statusEl.textContent = 'Klar';
+  } catch (err) {
+    contentEl.classList.remove('streaming-cursor');
+    contentEl.textContent = `Feil: ${err.message}`;
+    statusEl.textContent = 'Feil';
+    conversations[model].push({ role: 'assistant', content: `Feil: ${err.message}` });
+  }
+}
+
+function appendAssistantMessage(model, text) {
+  conversations[model].push({ role: 'assistant', content: text });
+  renderPanels();
+}
+
+// Validering av nokler: i proxy-modus trenger vi ikke nokler i nettleseren
+function hasAccess(model) {
+  return isProxyMode() || !!apiKeys[model];
+}
+
+// ============================================================
+//  API CALL IMPLEMENTATIONS
+//  To moduser:
+//    A) Proxy-modus: API-nokler lever pa serveren (anbefalt)
+//    B) Direkte modus: API-nokler i nettleseren (for testing)
+// ============================================================
+
+function getEndpoint(model) {
+  // Hvis proxy er konfigurert, bruk proxy-ruter
+  if (proxyUrl) {
+    return proxyUrl + MODEL_CONFIG[model].proxyPath;
+  }
+  // Ellers direkte (krever API-nokkel i nettleseren)
+  return MODEL_CONFIG[model].directEndpoint;
+}
+
+function isProxyMode() {
+  return !!proxyUrl;
+}
+
+// --- CLAUDE (Anthropic) ---
+async function callClaude(key, history, el) {
+  const messages = history.map(m => ({ role: m.role, content: m.content }));
+  const headers = { 'Content-Type': 'application/json' };
+
+  if (!isProxyMode()) {
+    headers['x-api-key'] = key;
+    headers['anthropic-version'] = '2023-06-01';
+    headers['anthropic-dangerous-direct-browser-access'] = 'true';
+  }
+
+  const res = await fetch(getEndpoint('claude'), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: MODEL_CONFIG.claude.model,
+      max_tokens: 4096,
+      messages
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`${res.status}: ${err.substring(0, 200)}`);
+  }
+
+  const data = await res.json();
+  const text = data.content?.map(b => b.text).join('') || '';
+  el.textContent = text;
+  return text;
+}
+
+// --- OPENAI (ChatGPT) ---
+async function callOpenAI(key, history, el) {
+  const messages = history.map(m => ({ role: m.role, content: m.content }));
+  const headers = { 'Content-Type': 'application/json' };
+
+  if (!isProxyMode()) {
+    headers['Authorization'] = `Bearer ${key}`;
+  }
+
+  const res = await fetch(getEndpoint('chatgpt'), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: MODEL_CONFIG.chatgpt.model,
+      messages,
+      stream: true
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`${res.status}: ${err.substring(0, 200)}`);
+  }
+
+  return await streamSSE(res, el);
+}
+
+// --- GEMINI (Google) ---
+async function callGemini(key, history, el) {
+  const contents = history.map(m => ({
+    role: m.role === 'user' ? 'user' : 'model',
+    parts: [{ text: m.content }]
+  }));
+
+  let url = getEndpoint('gemini');
+  const headers = { 'Content-Type': 'application/json' };
+
+  // I direkte modus legges nokkelen i URL
+  if (!isProxyMode()) {
+    url = `${url}?key=${key}`;
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ contents })
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`${res.status}: ${err.substring(0, 200)}`);
+  }
+
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || '';
+  el.textContent = text;
+  return text;
+}
+
+// --- MISTRAL ---
+async function callMistral(key, history, el) {
+  const messages = history.map(m => ({ role: m.role, content: m.content }));
+  const headers = { 'Content-Type': 'application/json' };
+
+  if (!isProxyMode()) {
+    headers['Authorization'] = `Bearer ${key}`;
+  }
+
+  const res = await fetch(getEndpoint('mistral'), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: MODEL_CONFIG.mistral.model,
+      messages,
+      stream: true
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`${res.status}: ${err.substring(0, 200)}`);
+  }
+
+  return await streamSSE(res, el);
+}
+
+// ============================================================
+//  SSE STREAMING (OpenAI / Mistral compatible)
+// ============================================================
+async function streamSSE(response, el) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let fullText = '';
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const payload = line.slice(6).trim();
+      if (payload === '[DONE]') break;
+
+      try {
+        const json = JSON.parse(payload);
+        const delta = json.choices?.[0]?.delta?.content || '';
+        fullText += delta;
+        el.textContent = fullText;
+        el.closest('.panel-body')?.scrollTo(0, el.closest('.panel-body').scrollHeight);
+      } catch(e) {}
+    }
+  }
+
+  return fullText;
+}
+
+// ============================================================
+init();
+</script>
+</body>
+</html>
