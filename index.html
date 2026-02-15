@@ -744,7 +744,7 @@ function init() {
 function loadConfig() {
   try {
     apiKeys = JSON.parse(window.localStorage?.getItem('ai-keys') || '{}');
-    proxyUrl = window.localStorage?.getItem('ai-proxy') || '';
+    proxyUrl = window.localStorage?.getItem('ai-proxy') || 'https://ai-kontrollrom-proxy.alstedts.workers.dev';
   } catch(e) {
     apiKeys = {};
     proxyUrl = '';
